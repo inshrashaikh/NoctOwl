@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String             @id @default(uuid())
+  phone        String             @unique
+  name         String?
+  email        String?            @unique
+  passwordHash String?
+  role         Role               @default(USER)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  profile      Profile?
+  contacts     EmergencyContact[]
+  trips         Trip[]
+  notifications Notification[]
+  safeZones     SafeZone[]
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarUrl String?
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmergencyContact {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  relation  String?
+  priority  Int      @default(1)
+  fcmToken  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, phone])
+}
+
+model Trip {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?
+  status    TripStatus @default(PLANNED)
+  startTime DateTime?
+  endTime   DateTime?
+  startLat  Float?
+  startLon  Float?
+  endLat    Float?
+  endLon          Float?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  locations       TripLocation[]
+  routeCache      RouteCache?
+  notifications   Notification[]
+  riskAssessments RiskAssessment[]
+  geofenceEvents  GeofenceEvent[]
+}
+
+model TripLocation {
+  id        String   @id @default(uuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  lat       Float
+  lon       Float
+  accuracy  Float?
+  speed     Float?
+  heading   Float?
+  timestamp DateTime @default(now())
+
+  @@index([tripId, timestamp])
+}
+
+model RouteCache {
+  id        String   @id @default(uuid())
+  tripId    String   @unique
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  routeData Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TripStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  EMERGENCY
+  GEOFENCE_ALERT
+  TRIP_UPDATE
+  RISK_WARNING
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  ACKNOWLEDGED
+}
+
+model Notification {
+  id            String           @id @default(uuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tripId        String?
+  trip          Trip?            @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  type          NotificationType
+  title         String
+  body          String
+  metadata      Json?
+  status        DeliveryStatus   @default(PENDING)
+  fcmMessageId  String?
+  failureReason String?
+  createdAt     DateTime         @default(now())
+  deliveredAt   DateTime?
+
+  @@index([userId, createdAt])
+  @@index([tripId])
+}
+
+model RiskAssessment {
+  id         String   @id @default(uuid())
+  tripId     String
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  segmentId  String?
+  riskScore  Float
+  factors    Json?
+  assessedAt DateTime @default(now())
+
+  @@index([tripId, assessedAt])
+}
+
+model SafeZone {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  geometry  Json
+  radius    Float?
+  centerLat Float?
+  centerLon Float?
+  color     String          @default("#3B82F6")
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  events    GeofenceEvent[]
+
+  @@index([userId, active])
+}
+
+model GeofenceEvent {
+  id         String            @id @default(uuid())
+  tripId     String
+  trip       Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  safeZoneId String
+  safeZone   SafeZone          @relation(fields: [safeZoneId], references: [id], onDelete: Cascade)
+  eventType  GeofenceEventType
+  lat        Float
+  lon        Float
+  occurredAt DateTime          @default(now())
+
+  @@index([tripId, occurredAt])
+}
+
+enum GeofenceEventType {
+  ENTER
+  EXIT
+}
