@@ -9,6 +9,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   AuthenticatedUser,
@@ -21,6 +27,8 @@ import {
   TriggerEmergencyResult,
 } from './notification.service';
 
+@ApiTags('Emergency Notifications')
+@ApiBearerAuth()
 @Controller('emergency')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
@@ -28,6 +36,8 @@ export class NotificationsController {
 
   @Post('trigger')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Trigger emergency notification to contacts' })
+  @ApiResponse({ status: 201, description: 'Emergency alert queued for delivery' })
   triggerEmergency(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: TriggerEmergencyDto,
@@ -36,6 +46,8 @@ export class NotificationsController {
   }
 
   @Get(':notificationId/status')
+  @ApiOperation({ summary: 'Get delivery status of an emergency notification' })
+  @ApiResponse({ status: 200, description: 'Delivery status returned' })
   getStatus(
     @CurrentUser() user: AuthenticatedUser,
     @Param('notificationId', new ParseUUIDPipe()) notificationId: string,

@@ -8,6 +8,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   AuthenticatedUser,
@@ -19,6 +25,8 @@ import {
   RoutingService,
 } from './routing.service';
 
+@ApiTags('Routing')
+@ApiBearerAuth()
 @Controller('trips/:tripId')
 @UseGuards(JwtAuthGuard)
 export class RoutingController {
@@ -26,6 +34,8 @@ export class RoutingController {
 
   @Post('route')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Calculate route geometry and duration via Valhalla' })
+  @ApiResponse({ status: 200, description: 'Route calculated and cached' })
   calculateRoute(
     @CurrentUser() user: AuthenticatedUser,
     @Param('tripId', new ParseUUIDPipe()) tripId: string,
@@ -34,6 +44,8 @@ export class RoutingController {
   }
 
   @Get('eta')
+  @ApiOperation({ summary: 'Get estimated time of arrival for a trip' })
+  @ApiResponse({ status: 200, description: 'ETA returned' })
   getEta(
     @CurrentUser() user: AuthenticatedUser,
     @Param('tripId', new ParseUUIDPipe()) tripId: string,

@@ -5,6 +5,12 @@ import {
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   AuthenticatedUser,
@@ -16,12 +22,16 @@ import {
   TripTrailResult,
 } from './maps.service';
 
+@ApiTags('Maps')
+@ApiBearerAuth()
 @Controller('trips/:tripId/map')
 @UseGuards(JwtAuthGuard)
 export class MapsController {
   constructor(private readonly mapsService: MapsService) {}
 
   @Get('trail')
+  @ApiOperation({ summary: 'Get GeoJSON trip breadcrumb trail' })
+  @ApiResponse({ status: 200, description: 'Trip trail GeoJSON returned' })
   getTripTrail(
     @CurrentUser() user: AuthenticatedUser,
     @Param('tripId', new ParseUUIDPipe()) tripId: string,
@@ -30,6 +40,8 @@ export class MapsController {
   }
 
   @Get('markers')
+  @ApiOperation({ summary: 'Get origin, destination, and geofence markers for a trip' })
+  @ApiResponse({ status: 200, description: 'Trip map markers returned' })
   getTripMarkers(
     @CurrentUser() user: AuthenticatedUser,
     @Param('tripId', new ParseUUIDPipe()) tripId: string,

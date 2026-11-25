@@ -6,6 +6,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   AuthenticatedUser,
@@ -14,6 +20,8 @@ import {
 import { SyncBatchDto } from './dto/sync-batch.dto';
 import { SyncBatchResult, SyncService } from './sync.service';
 
+@ApiTags('Offline Sync')
+@ApiBearerAuth()
 @Controller('sync')
 @UseGuards(JwtAuthGuard)
 export class SyncController {
@@ -21,6 +29,8 @@ export class SyncController {
 
   @Post('batch')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Process idempotent offline sync queue batch' })
+  @ApiResponse({ status: 200, description: 'Batch processed with per-item results' })
   processBatch(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SyncBatchDto,

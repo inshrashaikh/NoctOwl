@@ -11,6 +11,12 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { GeofenceEvent, SafeZone } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -22,12 +28,16 @@ import { CreateSafeZoneDto } from './dto/create-safe-zone.dto';
 import { UpdateSafeZoneDto } from './dto/update-safe-zone.dto';
 import { GeofenceCheckResult, GeofencingService } from './geofencing.service';
 
+@ApiTags('Geofencing')
+@ApiBearerAuth()
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class GeofencingController {
   constructor(private readonly geofencingService: GeofencingService) {}
 
   @Post('safe-zones')
+  @ApiOperation({ summary: 'Create a circular or polygon safe zone' })
+  @ApiResponse({ status: 201, description: 'Safe zone created' })
   createSafeZone(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateSafeZoneDto,
@@ -36,11 +46,15 @@ export class GeofencingController {
   }
 
   @Get('safe-zones')
+  @ApiOperation({ summary: 'List user safe zones' })
+  @ApiResponse({ status: 200, description: 'Safe zones returned' })
   listSafeZones(@CurrentUser() user: AuthenticatedUser): Promise<SafeZone[]> {
     return this.geofencingService.listSafeZones(user.userId);
   }
 
   @Patch('safe-zones/:id')
+  @ApiOperation({ summary: 'Update a safe zone' })
+  @ApiResponse({ status: 200, description: 'Safe zone updated' })
   updateSafeZone(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -50,6 +64,8 @@ export class GeofencingController {
   }
 
   @Delete('safe-zones/:id')
+  @ApiOperation({ summary: 'Delete a safe zone' })
+  @ApiResponse({ status: 200, description: 'Safe zone deleted' })
   deleteSafeZone(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -59,6 +75,8 @@ export class GeofencingController {
 
   @Post('trips/:tripId/geofence-check')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check coordinates against user safe zones' })
+  @ApiResponse({ status: 200, description: 'Geofence transition events evaluated' })
   checkGeofence(
     @CurrentUser() user: AuthenticatedUser,
     @Param('tripId', new ParseUUIDPipe()) tripId: string,
@@ -68,6 +86,8 @@ export class GeofencingController {
   }
 
   @Get('trips/:tripId/geofence-events')
+  @ApiOperation({ summary: 'List geofence events recorded for a trip' })
+  @ApiResponse({ status: 200, description: 'Geofence events returned' })
   listGeofenceEvents(
     @CurrentUser() user: AuthenticatedUser,
     @Param('tripId', new ParseUUIDPipe()) tripId: string,
