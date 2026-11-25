@@ -20,10 +20,12 @@ apps/api/prisma/generated/
 *.db
 *.db-journal
 
-# Test coverage
+# Test coverage & load results
 coverage/
 .coverage
 .nyc_output/
+tests/load/results/*
+!tests/load/results/.gitkeep
 
 # Logs
 *.log

@@ -1,0 +1,23 @@
+name: Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Staging API base URL"
+        required: true
+        default: "http://localhost:3000"
+
+jobs:
+  k6-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run k6 API smoke test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: tests/load/api-smoke.js
+        env:
+          BASE_URL: ${{ inputs.target_url }}
+          API_TOKEN: ${{ secrets.LOAD_TEST_API_TOKEN }}
