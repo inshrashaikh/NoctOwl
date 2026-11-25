@@ -1,0 +1,72 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "small_model": "anthropic/claude-haiku-3-5-20241022",
+  "formatter": {
+    "prettier": {
+      "command": ["npx", "--yes", "prettier", "--write", "$FILE"],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".json", ".md"]
+    },
+    "ruff": {
+      "command": ["ruff", "format", "$FILE"],
+      "extensions": [".py"]
+    },
+    "prisma": {
+      "command": [
+        "npm",
+        "--prefix",
+        "apps/api",
+        "exec",
+        "--",
+        "prisma",
+        "format",
+        "--schema",
+        "$FILE"
+      ],
+      "extensions": [".prisma"]
+    }
+  },
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "npm test": "allow",
+      "npm run test:e2e": "allow",
+      "npm run build": "allow",
+      "npx tsc --noEmit": "allow",
+      "pytest": "allow",
+      "docker compose*": "ask",
+      "git commit*": "deny",
+      "git push*": "deny",
+      "git add*": "allow",
+      "rm -rf*": "deny"
+    },
+    "write": "allow",
+    "edit": "allow",
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "skill": {
+      "noctowl-*": "allow"
+    }
+  },
+  "instructions": ["AGENTS.md"],
+  "default_agent": "build",
+  "subagent_depth": 1,
+  "experimental": {
+    "subagent_depth": 1
+  },
+  "lsp": {
+    "deno": {
+      "disabled": true
+    },
+    "eslint": {
+      "disabled": false
+    },
+    "prisma": {
+      "disabled": false
+    },
+    "pyright": {
+      "disabled": false
+    }
+  }
+}
