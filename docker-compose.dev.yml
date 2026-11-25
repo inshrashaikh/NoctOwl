@@ -1,0 +1,54 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/database:/docker-entrypoint-initdb.d:ro
+      - ./infrastructure/scripts:/scripts:ro
+
+  redis:
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  api:
+    ports:
+      - "3000:3000"
+
+  valhalla:
+    ports:
+      - "8002:8002"
+
+  ai-service:
+    ports:
+      - "8000:8000"
+
+  web:
+    ports:
+      - "3002:3000"
+
+  prometheus:
+    ports:
+      - "9090:9090"
+
+  loki:
+    ports:
+      - "3100:3100"
+
+  grafana:
+    ports:
+      - "3001:3000"
+
+# Allow host port access in local development while keeping base/prod internal.
+networks:
+  noctowl-net:
+    internal: false
