@@ -1,0 +1,182 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: API build and unit tests
+        run: cd apps/api && npm ci && npx prisma generate && npm run build && npm test
+
+      - name: Web typecheck, lint, and tests
+        run: cd apps/web && npm ci && npx tsc --noEmit && npm run lint && npm test
+
+      - name: AI service tests
+        run: cd apps/ai-service && pip install -r requirements.txt && pytest
+
+  backup-restore-test:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: noctowl_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install PostgreSQL 16 client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+
+      - name: Run migrations and seed test data
+        env:
+          DATABASE_URL: postgresql://postgres:test@localhost:5432/noctowl_test?schema=public
+        run: |
+          cd apps/api
+          npm ci
+          npx prisma migrate deploy
+          psql "postgresql://postgres:test@localhost:5432/noctowl_test" -c "INSERT INTO \"User\" (id, phone, role, active, \"createdAt\", \"updatedAt\") VALUES ('00000000-0000-0000-0000-000000000001', '+15550000001', 'ADMIN', true, NOW(), NOW());"
+          psql "postgresql://postgres:test@localhost:5432/noctowl_test" -c "INSERT INTO \"Trip\" (id, \"userId\", \"originLat\", \"originLng\", \"destLat\", \"destLng\", status, \"createdAt\", \"updatedAt\") VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 37.7749, -122.4194, 37.7849, -122.4094, 'ACTIVE', NOW(), NOW());"
+
+      - name: Run backup and restore verification
+        run: |
+          chmod +x infrastructure/scripts/*.sh
+          export DATABASE_URL="postgresql://postgres:test@localhost:5432/noctowl_test"
+          export ADMIN_DATABASE_URL="postgresql://postgres:test@localhost:5432/postgres"
+          ./infrastructure/scripts/backup.sh
+          ./infrastructure/scripts/test-restore.sh
+
+  build-and-push:
+    needs: [lint-and-test, backup-restore-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      matrix:
+        include:
+          - service: api
+            dockerfile: infrastructure/docker/api.Dockerfile
+          - service: web
+            dockerfile: infrastructure/docker/web.Dockerfile
+          - service: ai-service
+            dockerfile: infrastructure/docker/ai.Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build image for vulnerability scan
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image with Trivy before push
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.sha }}
+          format: "table"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Push image to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+
+  deploy:
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy compose and infrastructure files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "docker-compose.yml,docker-compose.prod.yml,infrastructure/"
+          target: "/opt/noctowl/"
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/noctowl
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            export GITHUB_REPOSITORY="${{ github.repository }}"
+            export TAG="${{ github.sha }}"
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull api web ai-service
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T api npx prisma migrate deploy
+            docker system prune -f
