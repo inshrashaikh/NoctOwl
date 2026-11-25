@@ -42,6 +42,22 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# OpenCode local overrides (keep AGENTS.md, shared config, skills and commands committed)
+.opencode/*
+!.opencode/skills/
+!.opencode/skills/**
+!.opencode/commands/
+!.opencode/commands/**
+!.opencode/plugins/
+!.opencode/plugins/**
+!.opencode/agents/
+!.opencode/agents/**
+!.opencode/tools/
+!.opencode/tools/**
+
+# Knowledge base storage (lancedb-mcp)
+.kb_data/
+
 # Docker
 .docker/
 
@@ -66,3 +82,13 @@ tmp/
 temp/
 .cache/
 **/*.tsbuildinfo
+
+# OpenCode cache & build artifacts
+.opencode/.cache/
+.opencode/cache/
+
+# Agent skill auto-generated symlinks (re-created by sync-agents.sh)
+.agents/skills/
+
+# EAS / Expo build secrets
+apps/mobile/eas-build-*.json
